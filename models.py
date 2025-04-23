@@ -6,13 +6,16 @@ from typing import List, Optional, Dict, Tuple
 from IPython.display import display
 import folium
 import folium.plugins
+import json
 
 # Set up logging
-logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(levelname)s - %(message)s')
+logging.basicConfig(level=logging.DEBUG,
+                    format='%(asctime)s - %(levelname)s - %(message)s')
 
 MAPBOX_OPTIMIZATION_API_URL = "https://api.mapbox.com/optimized-trips/v1/mapbox/driving-traffic/"
 MAPBOX_DIRECTIONS_API_URL = "https://api.mapbox.com/directions/v5/mapbox/driving-traffic/"
 MAPBOX_ACCESS_TOKEN = "pk.eyJ1IjoicGVuZGxhIiwiYSI6ImNtOXNuNjV2NjAyNjYyanM5M2Fjb24xYTAifQ.7RqcSLC1TxVWdeZMj8QkTw"
+
 
 class MapboxOptimizer:
     def __init__(self, access_token: str):
@@ -21,7 +24,7 @@ class MapboxOptimizer:
 
     def calculate_direct_route(self, start: List[float], end: List[float]) -> Optional[Dict]:
         coords_str = f"{start[1]},{start[0]};{end[1]},{end[0]}"
-        url = f"{MAPBOX_DIRECTIONS_API_URL}{coords_str}?geometries=geojson&overview=full&access_token={self.access_token}"
+        url = f"{MAPBOX_DIRECTIONS_API_URL}{coords_str}?geometries=geojson&overview=full&steps=true&access_token={self.access_token}"
 
         try:
             response = requests.get(url)
@@ -33,20 +36,23 @@ class MapboxOptimizer:
                     "distance": route["distance"] / 1000,
                     "duration": route["duration"] / 60,
                     "geometry": route["geometry"]["coordinates"],
+                    "steps": route.get("legs", [{}])[0].get("steps", [])
                 }
             logging.warning(f"No valid route found in response: {data}")
             return None
         except requests.RequestException as e:
-            logging.error(f"Error calculating direct route from {start} to {end}: {e}")
+            logging.error(
+                f"Error calculating direct route from {start} to {end}: {e}")
             return None
 
     def calculate_optimized_route(self, coordinates: List[List[float]]) -> Optional[Dict]:
         if len(coordinates) < 2 or len(coordinates) > 12:
-            logging.warning(f"Invalid number of waypoints: {len(coordinates)}. Must be 2-12.")
+            logging.warning(
+                f"Invalid number of waypoints: {len(coordinates)}. Must be 2-12.")
             return None
 
         coords_str = ";".join(f"{lon},{lat}" for lat, lon in coordinates)
-        url = f"{MAPBOX_OPTIMIZATION_API_URL}{coords_str}?geometries=geojson&overview=full&source=first&destination=last&roundtrip=false&access_token={self.access_token}"
+        url = f"{MAPBOX_OPTIMIZATION_API_URL}{coords_str}?geometries=geojson&overview=full&source=first&destination=last&roundtrip=false&steps=true&access_token={self.access_token}"
 
         try:
             response = requests.get(url)
@@ -56,16 +62,21 @@ class MapboxOptimizer:
                 trip = data["trips"][0]
                 waypoint_indices = data.get("waypoints", [])
                 if len(waypoint_indices) != len(coordinates):
-                    logging.error(f"waypoint_indices length ({len(waypoint_indices)}) does not match coordinates ({len(coordinates)})")
+                    logging.error(
+                        f"waypoint_indices length ({len(waypoint_indices)}) does not match coordinates ({len(coordinates)})")
                     return None
                 legs = trip.get("legs", [])
                 leg_durations = [leg["duration"] / 60 for leg in legs]
+                steps = []
+                for leg in legs:
+                    steps.extend(leg.get("steps", []))
                 result = {
                     "geometry": trip["geometry"]["coordinates"],
                     "distance": trip["distance"] / 1000,
                     "duration": trip["duration"] / 60,
                     "waypoint_indices": [wp["waypoint_index"] for wp in waypoint_indices],
-                    "leg_durations": leg_durations
+                    "leg_durations": leg_durations,
+                    "steps": steps
                 }
                 return result
             logging.warning(f"No valid trip found in response: {data}")
@@ -80,7 +91,8 @@ class MapboxOptimizer:
             return None
 
         if len(coordinates) > 100:
-            logging.info(f"Too many coordinates ({len(coordinates)}). Reducing to 100.")
+            logging.info(
+                f"Too many coordinates ({len(coordinates)}). Reducing to 100.")
             coordinates = coordinates[::len(coordinates)//100 + 1][:100]
 
         coords_str = ";".join(f"{lon},{lat}" for lat, lon in coordinates)
@@ -101,7 +113,8 @@ class MapboxOptimizer:
             logging.warning(f"No valid matching found in response: {data}")
             return None
         except requests.RequestException as e:
-            logging.error(f"Error in map matching: {e}. Response: {response.text if 'response' in locals() else 'No response'}")
+            logging.error(
+                f"Error in map matching: {e}. Response: {response.text if 'response' in locals() else 'No response'}")
             return None
 
 
@@ -122,6 +135,7 @@ class User:
     def ride(self, ride: Optional['Ride']) -> None:
         self._ride = ride
 
+
 class Driver(User):
     def __init__(self, name: str, home: List[float], workplace: List[float], workplace_name: str, max_detour_minutes: float, max_riders: int, optimizer: 'MapboxOptimizer'):
         super().__init__(name, home, workplace, workplace_name)
@@ -132,16 +146,19 @@ class Driver(User):
         try:
             self.ride = self._create_solo_ride(optimizer)
             if self.ride is None:
-                logging.error(f"Failed to create solo ride for {name}: No route returned")
+                logging.error(
+                    f"Failed to create solo ride for {name}: No route returned")
                 raise ValueError("No valid route for solo ride")
         except Exception as e:
             logging.error(f"Failed to create solo ride for {name}: {e}")
             self.ride = None
 
     def _create_solo_ride(self, optimizer: 'MapboxOptimizer') -> 'Ride':
-        direct_route = optimizer.calculate_direct_route(self.home, self.workplace)
+        direct_route = optimizer.calculate_direct_route(
+            self.home, self.workplace)
         if not direct_route:
-            logging.error(f"Failed to compute direct route for {self.name} from {self.home} to {self.workplace}")
+            logging.error(
+                f"Failed to compute direct route for {self.name} from {self.home} to {self.workplace}")
             raise ValueError(f"Cannot compute direct route for {self.name}")
 
         geometry = direct_route['geometry']
@@ -157,6 +174,7 @@ class Driver(User):
         ride.matched_geometry = geometry
         return ride
 
+
 class Rider(User):
     def __init__(self, name: str, home: List[float], workplace: List[float], workplace_name: str, optimizer: 'MapboxOptimizer'):
         super().__init__(name, home, workplace, workplace_name)
@@ -166,14 +184,18 @@ class Rider(User):
 
     def _create_direct_route(self, optimizer: 'MapboxOptimizer') -> Optional[Dict]:
         try:
-            direct_route = optimizer.calculate_direct_route(self.home, self.workplace)
+            direct_route = optimizer.calculate_direct_route(
+                self.home, self.workplace)
             if not direct_route:
-                logging.error(f"Failed to compute direct route for rider {self.name} from {self.home} to {self.workplace}")
+                logging.error(
+                    f"Failed to compute direct route for rider {self.name} from {self.home} to {self.workplace}")
                 return None
             return direct_route
         except Exception as e:
-            logging.error(f"Error creating direct route for rider {self.name}: {e}")
+            logging.error(
+                f"Error creating direct route for rider {self.name}: {e}")
             return None
+
 
 class Ride:
     def __init__(self, driver: Driver, riders: List[Rider], route: Dict, direct_duration: float):
@@ -183,30 +205,27 @@ class Ride:
         self.stops = [rider.home for rider in riders]
         self.destination = driver.workplace
         self.route = route
-        self.matched_geometry = route.get('matched_geometry', route.get('geometry', []))
+        self.matched_geometry = route.get(
+            'matched_geometry', route.get('geometry', []))
+        self.steps = route.get('steps', [])
         self.distance = route.get('distance', 0.0)
         self.duration = route.get('duration', 0.0)
         self.direct_duration = direct_duration
-        self.detour = self.duration - direct_duration if self.duration > direct_duration else 0.0
+        self.detour = self.duration - \
+            direct_duration if self.duration > direct_duration else 0.0
         self.waypoint_order = route.get('waypoint_indices', [])
         self.leg_durations = route.get('leg_durations', [])
-
-    def get_ordered_stops(self) -> List[Tuple[str, List[float]]]:
-        names = [self.driver.name] + [rider.name for rider in self.riders] + [self.driver.workplace_name]
-        coords = [self.start] + self.stops + [self.destination]
-        if len(self.waypoint_order) != len(names):
-            logging.warning(f"waypoint_order length ({len(self.waypoint_order)}) does not match stops ({len(names)})")
-            return [(names[i], coords[i]) for i in range(len(names))]
-        return [(names[idx], coords[idx]) for idx in self.waypoint_order]
 
     def update_ride(self, riders: List[Rider], route: Dict, direct_duration: float, optimizer: MapboxOptimizer = None) -> None:
         self.riders = riders
         self.stops = [rider.home for rider in riders]
         self.route = route
+        self.steps = route.get('steps', [])
         self.distance = route.get('distance', 0.0)
         self.duration = route.get('duration', 0.0)
         self.direct_duration = direct_duration
-        self.detour = self.duration - direct_duration if self.duration > direct_duration else 0.0
+        self.detour = self.duration - \
+            direct_duration if self.duration > direct_duration else 0.0
         self.waypoint_order = route.get('waypoint_indices', [])
         self.leg_durations = route.get('leg_durations', [])
 
@@ -221,6 +240,17 @@ class Ride:
         else:
             self.matched_geometry = route.get('geometry', [])
 
+    def get_ordered_stops(self) -> List[Tuple[str, List[float]]]:
+        names = [self.driver.name] + \
+            [rider.name for rider in self.riders] + [self.driver.workplace_name]
+        coords = [self.start] + self.stops + [self.destination]
+        if len(self.waypoint_order) != len(names):
+            logging.warning(
+                f"waypoint_order length ({len(self.waypoint_order)}) does not match stops ({len(names)})")
+            return [(names[i], coords[i]) for i in range(len(names))]
+        return [(names[idx], coords[idx]) for idx in self.waypoint_order]
+
+
 class MapVisualizer:
     @staticmethod
     def create_map(ride: Ride, rider: Optional[Rider] = None) -> folium.Map:
@@ -231,15 +261,12 @@ class MapVisualizer:
 
             m = folium.Map(
                 location=[sum(coord[0] for coord in all_coords) / len(all_coords),
-                          sum(coord[1] for coord in all_coords) / len(all_coords)],
+                        sum(coord[1] for coord in all_coords) / len(all_coords)],
                 zoom_start=12,
-                tiles="CartoDB Positron",
-                attr="CartoDB Positron",
+                tiles=f"https://api.mapbox.com/styles/v1/mapbox/navigation-day-v1/tiles/{{z}}/{{x}}/{{y}}?access_token={MAPBOX_ACCESS_TOKEN}",
+                attr="Mapbox Navigation Day",
                 zoom_control=False
             )
-
-            minimap = folium.plugins.MiniMap()
-            m.add_child(minimap)
 
             folium.Marker(
                 location=ride.start,
@@ -284,9 +311,11 @@ class MapVisualizer:
                         location=rider.home,
                         popup=f"<b>Rider: {rider.name}</b><br>Potential Pickup",
                         tooltip=f"{rider.name} (Potential)",
-                        icon=folium.Icon(color='orange', icon='user-plus', prefix='fa')
+                        icon=folium.Icon(
+                            color='orange', icon='user-plus', prefix='fa')
                     ).add_to(m)
-                rider_route_coords = [[lat, lon] for lon, lat in rider.direct_route['geometry']]
+                rider_route_coords = [[lat, lon]
+                                      for lon, lat in rider.direct_route['geometry']]
                 folium.PolyLine(
                     locations=rider_route_coords,
                     color="#388e3c",
@@ -299,8 +328,10 @@ class MapVisualizer:
 
             if route_bounds:
                 bounds = [
-                    [min(lat for lat, lon in route_bounds), min(lon for lat, lon in route_bounds)],
-                    [max(lat for lat, lon in route_bounds), max(lon for lat, lon in route_bounds)]
+                    [min(lat for lat, lon in route_bounds),
+                     min(lon for lat, lon in route_bounds)],
+                    [max(lat for lat, lon in route_bounds),
+                     max(lon for lat, lon in route_bounds)]
                 ]
                 m.fit_bounds(bounds, padding=(30, 30))
 
@@ -322,6 +353,7 @@ class MapVisualizer:
             logging.error(f"Error creating map: {e}")
             raise
 
+
 class RideManager:
     def __init__(self, optimizer: MapboxOptimizer):
         self.optimizer = optimizer
@@ -330,71 +362,83 @@ class RideManager:
     def calculate_matching_score(self, driver: Driver, rider: Rider) -> float:
         try:
             if rider.workplace != driver.workplace or rider.ride:
-                return 0.0  # Ineligible rider
+                return 0.0
 
-            # Calculate closest distance to ride geometry
             rider_home = rider.home
             closest_distance = float('inf')
             if driver.ride.matched_geometry:
                 for lon, lat in driver.ride.matched_geometry:
-                    dist = math.sqrt((rider_home[0] - lat)**2 + (rider_home[1] - lon)**2) * 111  # Approx km
+                    dist = math.sqrt(
+                        (rider_home[0] - lat)**2 + (rider_home[1] - lon)**2) * 111
                     closest_distance = min(closest_distance, dist)
-            max_closest_distance = 50.0  # Normalize to 50 km
+            max_closest_distance = 50.0
 
-            # Simulate adding rider to ride
             max_allowed_duration = driver.ride.direct_duration + driver.max_detour_minutes
             new_riders = driver.ride.riders + [rider]
-            coordinates = [driver.ride.start] + [r.home for r in new_riders] + [driver.ride.destination]
+            coordinates = [driver.ride.start] + \
+                [r.home for r in new_riders] + [driver.ride.destination]
             new_route = self.optimizer.calculate_optimized_route(coordinates)
 
             if not new_route or new_route['duration'] > max_allowed_duration:
-                return 0.0  # Route invalid or exceeds detour
+                return 0.0
 
             detour_time = new_route['duration'] - driver.ride.direct_duration
-            detour_distance = new_route['distance'] - driver.ride.route.get('distance', 0.0)
+            detour_distance = new_route['distance'] - \
+                driver.ride.route.get('distance', 0.0)
 
-            # Normalize components
-            time_score = max(0.0, 1.0 - detour_time / driver.max_detour_minutes) if driver.max_detour_minutes > 0 else 0.0
-            distance_score = max(0.0, 1.0 - detour_distance / driver.ride.route.get('distance', 1.0)) if driver.ride.route.get('distance', 1.0) > 0 else 0.0
-            closest_distance_score = max(0.0, 1.0 - closest_distance / max_closest_distance) if max_closest_distance > 0 else 0.0
+            time_score = max(0.0, 1.0 - detour_time /
+                             driver.max_detour_minutes) if driver.max_detour_minutes > 0 else 0.0
+            distance_score = max(0.0, 1.0 - detour_distance / driver.ride.route.get(
+                'distance', 1.0)) if driver.ride.route.get('distance', 1.0) > 0 else 0.0
+            closest_distance_score = max(
+                0.0, 1.0 - closest_distance / max_closest_distance) if max_closest_distance > 0 else 0.0
 
-            # Weighted score (weights sum to 1)
             w1, w2, w3 = 0.7, 0.2, 0.1
             score = w1 * time_score + w2 * closest_distance_score + w3 * distance_score
 
-            return min(max(score, 0.0), 1.0)  # Clamp to [0, 1]
+            return min(max(score, 0.0), 1.0)
         except Exception as e:
-            logging.error(f"Error calculating matching score for {driver.name} and {rider.name}: {e}")
+            logging.error(
+                f"Error calculating matching score for {driver.name} and {rider.name}: {e}")
             return 0.0
 
     def add_rider_to_ride(self, ride: Ride, new_rider: Rider) -> bool:
         try:
             if new_rider.workplace != ride.driver.workplace:
-                self.failed_attempts.append(f"Rider {new_rider.name} does not match workplace {ride.driver.workplace_name}")
-                logging.warning(f"Rider {new_rider.name} does not match workplace {ride.driver.workplace_name}")
+                self.failed_attempts.append(
+                    f"Rider {new_rider.name} does not match workplace {ride.driver.workplace_name}")
+                logging.warning(
+                    f"Rider {new_rider.name} does not match workplace {ride.driver.workplace_name}")
                 return False
 
             if new_rider.ride:
-                self.failed_attempts.append(f"Rider {new_rider.name} already has a ride")
+                self.failed_attempts.append(
+                    f"Rider {new_rider.name} already has a ride")
                 logging.warning(f"Rider {new_rider.name} already has a ride.")
                 return False
 
             if len(ride.riders) >= ride.driver.max_riders:
-                self.failed_attempts.append(f"Driver {ride.driver.name}'s ride is full (max {ride.driver.max_riders} riders)")
-                logging.warning(f"Driver {ride.driver.name}'s ride is full (max {ride.driver.max_riders} riders).")
+                self.failed_attempts.append(
+                    f"Driver {ride.driver.name}'s ride is full (max {ride.driver.max_riders} riders)")
+                logging.warning(
+                    f"Driver {ride.driver.name}'s ride is full (max {ride.driver.max_riders} riders).")
                 return False
 
             max_allowed_duration = ride.direct_duration + ride.driver.max_detour_minutes
             new_riders = ride.riders + [new_rider]
-            coordinates = [ride.start] + [rider.home for rider in new_riders] + [ride.destination]
+            coordinates = [ride.start] + \
+                [rider.home for rider in new_riders] + [ride.destination]
             new_route = self.optimizer.calculate_optimized_route(coordinates)
 
             if not new_route or new_route['duration'] > max_allowed_duration:
-                self.failed_attempts.append(f"Adding {new_rider.name} exceeds max detour of {ride.driver.max_detour_minutes} minutes")
-                logging.warning(f"Adding {new_rider.name} exceeds max detour of {ride.driver.max_detour_minutes} minutes.")
+                self.failed_attempts.append(
+                    f"Adding {new_rider.name} exceeds max detour of {ride.driver.max_detour_minutes} minutes")
+                logging.warning(
+                    f"Adding {new_rider.name} exceeds max detour of {ride.driver.max_detour_minutes} minutes.")
                 return False
 
-            ride.update_ride(new_riders, new_route, ride.direct_duration, self.optimizer)
+            ride.update_ride(new_riders, new_route,
+                             ride.direct_duration, self.optimizer)
             new_rider.ride = ride
             for rider in ride.riders:
                 rider.ride = ride
@@ -402,7 +446,8 @@ class RideManager:
             return True
         except Exception as e:
             logging.error(f"Error adding rider {new_rider.name} to ride: {e}")
-            self.failed_attempts.append(f"Error adding {new_rider.name}: {str(e)}")
+            self.failed_attempts.append(
+                f"Error adding {new_rider.name}: {str(e)}")
             return False
 
     def remove_rider_from_ride(self, ride: Ride, rider: Rider) -> bool:
@@ -412,12 +457,15 @@ class RideManager:
                 return False
 
             new_riders = [r for r in ride.riders if r != rider]
-            coordinates = [ride.start] + [r.home for r in new_riders] + [ride.destination]
+            coordinates = [ride.start] + \
+                [r.home for r in new_riders] + [ride.destination]
 
             if len(coordinates) == 2:
-                new_route = self.optimizer.calculate_direct_route(ride.start, ride.destination)
+                new_route = self.optimizer.calculate_direct_route(
+                    ride.start, ride.destination)
                 if not new_route:
-                    logging.error(f"Failed to compute direct route for {ride.driver.name} after removing {rider.name}")
+                    logging.error(
+                        f"Failed to compute direct route for {ride.driver.name} after removing {rider.name}")
                     return False
                 new_route = {
                     'distance': new_route['distance'],
@@ -428,12 +476,15 @@ class RideManager:
                     'matched_geometry': new_route['geometry']
                 }
             else:
-                new_route = self.optimizer.calculate_optimized_route(coordinates)
+                new_route = self.optimizer.calculate_optimized_route(
+                    coordinates)
                 if not new_route:
-                    logging.error(f"Failed to compute optimized route after removing {rider.name}")
+                    logging.error(
+                        f"Failed to compute optimized route after removing {rider.name}")
                     return False
 
-            ride.update_ride(new_riders, new_route, ride.direct_duration, self.optimizer)
+            ride.update_ride(new_riders, new_route,
+                             ride.direct_duration, self.optimizer)
             rider.ride = None
             for r in ride.riders:
                 r.ride = ride
@@ -452,17 +503,21 @@ class RideManager:
             print("\n" + "="*60)
             print(f"Ride Summary for {ride.driver.name}")
             print("="*60 + "\n")
-            
+
             print("General Information:")
             print(f"- Driver: {ride.driver.name}")
-            print(f"- Workplace: {ride.driver.workplace_name} {self._format_coords(ride.driver.workplace)}")
+            print(
+                f"- Workplace: {ride.driver.workplace_name} {self._format_coords(ride.driver.workplace)}")
             print(f"- Max Riders: {ride.driver.max_riders}")
-            print(f"- Max Detour: {ride.driver.max_detour_minutes:.2f} minutes")
-            print(f"- Riders: {', '.join(rider.name for rider in ride.riders) if ride.riders else 'None'}")
+            print(
+                f"- Max Detour: {ride.driver.max_detour_minutes:.2f} minutes")
+            print(
+                f"- Riders: {', '.join(rider.name for rider in ride.riders) if ride.riders else 'None'}")
             print(f"- Total Distance: {ride.distance:.2f} km")
             print(f"- Total Duration: {ride.duration:.2f} minutes")
             print(f"- Detour: {ride.detour:.2f} minutes")
-            print(f"- Direct Duration (no riders): {ride.direct_duration:.2f} minutes\n")
+            print(
+                f"- Direct Duration (no riders): {ride.direct_duration:.2f} minutes\n")
 
             print("Pickup Order:")
             ordered_stops = ride.get_ordered_stops()

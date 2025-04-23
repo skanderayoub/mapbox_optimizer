@@ -21,7 +21,6 @@ WORKPLACES = {
     "MERCEDES": [48.7833, 9.2250]
 }
 
-
 class DriverRouteApp(QMainWindow):
     def __init__(self, drivers: List[Driver], riders: List[Rider]):
         super().__init__()
@@ -116,7 +115,6 @@ class DriverRouteApp(QMainWindow):
         for driver in self.drivers:
             self.driver_combo.addItem(
                 f"{driver.name} ({driver.workplace_name})", driver)
-            # Add tooltip for long text
             self.driver_combo.setItemData(
                 self.driver_combo.count() - 1,
                 f"{driver.name} ({driver.workplace_name})",
@@ -262,7 +260,6 @@ class DriverRouteApp(QMainWindow):
             self.rider_combo.clear()
             self.rider_combo.addItem("Select a rider", None)
 
-            # Calculate matching scores for eligible riders
             eligible_riders = [
                 rider for rider in self.riders
                 if (rider.workplace == driver.workplace and
@@ -274,10 +271,8 @@ class DriverRouteApp(QMainWindow):
                     driver, rider)
                 rider_scores.append((rider, score))
 
-            # Sort riders by score (descending) and then by name for consistency
             rider_scores.sort(key=lambda x: (-x[1], x[0].name))
 
-            # Add riders to dropdown
             for rider, score in rider_scores:
                 if rider in driver.ride.riders:
                     self.rider_combo.addItem(
@@ -286,7 +281,6 @@ class DriverRouteApp(QMainWindow):
                     self.rider_combo.addItem(
                         f"{rider.name} (Score: {score:.2f})", rider)
 
-            # Restore previous selection if possible
             if current_rider:
                 for i in range(self.rider_combo.count()):
                     if self.rider_combo.itemData(i) == current_rider:
@@ -414,7 +408,6 @@ class DriverRouteApp(QMainWindow):
                 pass
         event.accept()
 
-
 def generate_random_drivers_and_riders(optimizer, num_drivers=5, num_riders=8):
     lat_min, lat_max = 48.65, 48.95
     lon_min, lon_max = 8.95, 9.35
@@ -511,7 +504,6 @@ def generate_random_drivers_and_riders(optimizer, num_drivers=5, num_riders=8):
 
     return drivers, riders
 
-
 def main():
     optimizer = MapboxOptimizer(MAPBOX_ACCESS_TOKEN)
     try:
@@ -536,7 +528,6 @@ def main():
     window = DriverRouteApp(drivers, riders)
     window.show()
     sys.exit(app.exec_())
-
 
 if __name__ == "__main__":
     main()
