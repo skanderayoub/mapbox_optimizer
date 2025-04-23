@@ -21,6 +21,7 @@ WORKPLACES = {
     "MERCEDES": [48.7833, 9.2250]
 }
 
+
 class DriverRouteApp(QMainWindow):
     def __init__(self, drivers: List[Driver], riders: List[Rider]):
         super().__init__()
@@ -117,8 +118,8 @@ class DriverRouteApp(QMainWindow):
                 f"{driver.name} ({driver.workplace_name})", driver)
             # Add tooltip for long text
             self.driver_combo.setItemData(
-                self.driver_combo.count() - 1, 
-                f"{driver.name} ({driver.workplace_name})", 
+                self.driver_combo.count() - 1,
+                f"{driver.name} ({driver.workplace_name})",
                 Qt.ToolTipRole
             )
         self.driver_combo.currentIndexChanged.connect(self.on_driver_selected)
@@ -140,8 +141,8 @@ class DriverRouteApp(QMainWindow):
         for rider in self.riders:
             self.rider_combo.addItem(rider.name, rider)
             self.rider_combo.setItemData(
-                self.rider_combo.count() - 1, 
-                rider.name, 
+                self.rider_combo.count() - 1,
+                rider.name,
                 Qt.ToolTipRole
             )
         self.rider_combo.currentIndexChanged.connect(self.on_rider_selected)
@@ -188,7 +189,8 @@ class DriverRouteApp(QMainWindow):
     def update_map(self, driver: Optional[Driver], rider: Optional[Rider]):
         if driver is None or driver.ride is None:
             logging.warning("No driver or ride available for map update")
-            self.web_view.setHtml("<h3>Please select a driver with a valid ride</h3>")
+            self.web_view.setHtml(
+                "<h3>Please select a driver with a valid ride</h3>")
             return
 
         try:
@@ -220,8 +222,10 @@ class DriverRouteApp(QMainWindow):
 
             if driver.ride is None:
                 logging.warning(f"Driver {driver.name} has no valid ride")
-                self.web_view.setHtml(f"<h3>Error: No valid ride for {driver.name}</h3>")
-                self.ride_info_text.setText(f"Error: No valid ride for {driver.name}. Please try another driver.")
+                self.web_view.setHtml(
+                    f"<h3>Error: No valid ride for {driver.name}</h3>")
+                self.ride_info_text.setText(
+                    f"Error: No valid ride for {driver.name}. Please try another driver.")
                 self.driver_info_label.setText("No ride available")
                 self.rider_combo.setCurrentIndex(0)
                 self.add_rider_button.setEnabled(False)
@@ -266,7 +270,8 @@ class DriverRouteApp(QMainWindow):
             ]
             rider_scores = []
             for rider in eligible_riders:
-                score = self.ride_manager.calculate_matching_score(driver, rider)
+                score = self.ride_manager.calculate_matching_score(
+                    driver, rider)
                 rider_scores.append((rider, score))
 
             # Sort riders by score (descending) and then by name for consistency
@@ -498,7 +503,8 @@ def generate_random_drivers_and_riders(optimizer, num_drivers=5, num_riders=8):
             if rider.direct_route is not None:
                 riders.append(rider)
             else:
-                logging.error(f"Skipping rider {name} due to invalid direct route")
+                logging.error(
+                    f"Skipping rider {name} due to invalid direct route")
         except Exception as e:
             logging.error(f"Failed to create rider {name}: {e}")
             continue
