@@ -21,7 +21,7 @@ class MapboxOptimizer:
 
     def calculate_direct_route(self, start: List[float], end: List[float]) -> Optional[Dict]:
         coords_str = f"{start[1]},{start[0]};{end[1]},{end[0]}"
-        url = f"{MAPBOX_DIRECTIONS_API_URL}{coords_str}?geometries=geojson&access_token={self.access_token}"
+        url = f"{MAPBOX_DIRECTIONS_API_URL}{coords_str}?geometries=geojson&overview=full&access_token={self.access_token}"
 
         try:
             response = requests.get(url)
@@ -46,7 +46,7 @@ class MapboxOptimizer:
             return None
 
         coords_str = ";".join(f"{lon},{lat}" for lat, lon in coordinates)
-        url = f"{MAPBOX_OPTIMIZATION_API_URL}{coords_str}?geometries=geojson&source=first&destination=last&roundtrip=false&access_token={self.access_token}"
+        url = f"{MAPBOX_OPTIMIZATION_API_URL}{coords_str}?geometries=geojson&overview=full&source=first&destination=last&roundtrip=false&access_token={self.access_token}"
 
         try:
             response = requests.get(url)
@@ -85,7 +85,7 @@ class MapboxOptimizer:
 
         coords_str = ";".join(f"{lon},{lat}" for lat, lon in coordinates)
         radiuses = ";".join(["50"] * len(coordinates))
-        url = f"{self.map_matching_url}{coords_str}?geometries=geojson&access_token={self.access_token}&steps=true&radiuses={radiuses}"
+        url = f"{self.map_matching_url}{coords_str}?geometries=geojson&overview=full&access_token={self.access_token}&steps=true&radiuses={radiuses}"
 
         try:
             response = requests.get(url)

@@ -44,7 +44,7 @@ class DriverRouteApp(QMainWindow):
                 border: 1px solid #dcdcdc;
                 border-radius: 5px;
                 background-color: white;
-                font-size: 14px;
+                font-size: 13px;
             }
             QComboBox::drop-down {
                 border: none;
@@ -54,14 +54,18 @@ class DriverRouteApp(QMainWindow):
                 width: 12px;
                 height: 12px;
             }
+            QComboBox QAbstractItemView {
+                min-width: 250px;
+            }
             QPushButton {
                 background-color: #4CAF50;
                 color: white;
                 padding: 8px 16px;
                 border: none;
                 border-radius: 5px;
-                font-size: 14px;
+                font-size: 13px;
                 font-weight: bold;
+                min-width: 100px;
             }
             QPushButton:hover {
                 background-color: #45a049;
@@ -70,7 +74,7 @@ class DriverRouteApp(QMainWindow):
                 background-color: #cccccc;
             }
             QLabel {
-                font-size: 14px;
+                font-size: 13px;
                 color: #333;
             }
             QTextEdit {
@@ -111,8 +115,15 @@ class DriverRouteApp(QMainWindow):
         for driver in self.drivers:
             self.driver_combo.addItem(
                 f"{driver.name} ({driver.workplace_name})", driver)
+            # Add tooltip for long text
+            self.driver_combo.setItemData(
+                self.driver_combo.count() - 1, 
+                f"{driver.name} ({driver.workplace_name})", 
+                Qt.ToolTipRole
+            )
         self.driver_combo.currentIndexChanged.connect(self.on_driver_selected)
-        self.driver_combo.setMinimumWidth(200)
+        self.driver_combo.setMinimumWidth(250)
+        self.driver_combo.setSizeAdjustPolicy(QComboBox.AdjustToContents)
         self.driver_info_label = QLabel("")
         self.driver_info_label.setStyleSheet("font-size: 13px; color: #555;")
         driver_row.addWidget(driver_label)
@@ -128,18 +139,22 @@ class DriverRouteApp(QMainWindow):
         self.rider_combo.addItem("Select a rider", None)
         for rider in self.riders:
             self.rider_combo.addItem(rider.name, rider)
+            self.rider_combo.setItemData(
+                self.rider_combo.count() - 1, 
+                rider.name, 
+                Qt.ToolTipRole
+            )
         self.rider_combo.currentIndexChanged.connect(self.on_rider_selected)
-        self.rider_combo.setMinimumWidth(200)
+        self.rider_combo.setMinimumWidth(250)
+        self.rider_combo.setSizeAdjustPolicy(QComboBox.AdjustToContents)
         self.add_rider_button = QPushButton("Add Rider")
         self.add_rider_button.setIcon(QIcon("add_icon.png"))
         self.add_rider_button.clicked.connect(self.on_add_rider)
         self.add_rider_button.setEnabled(False)
-        self.add_rider_button.setFixedWidth(120)
         self.remove_rider_button = QPushButton("Remove Rider")
         self.remove_rider_button.setIcon(QIcon("remove_icon.png"))
         self.remove_rider_button.clicked.connect(self.on_remove_rider)
         self.remove_rider_button.setEnabled(False)
-        self.remove_rider_button.setFixedWidth(120)
         rider_row.addWidget(rider_label)
         rider_row.addWidget(self.rider_combo)
         rider_row.addWidget(self.add_rider_button)
